@@ -67,7 +67,7 @@ static int ICACHE_FLASH_ATTR append_string(mqtt_connection_t* connection, const 
 
   connection->buffer[connection->message.length++] = len >> 8;
   connection->buffer[connection->message.length++] = len & 0xff;
-  memcpy(connection->buffer + connection->message.length, string, len);
+  os_memcpy(connection->buffer + connection->message.length, string, len);
   connection->message.length += len;
 
   return len + 2;
@@ -127,7 +127,7 @@ static mqtt_message_t* ICACHE_FLASH_ATTR fini_message(mqtt_connection_t* connect
 
 void ICACHE_FLASH_ATTR mqtt_msg_init(mqtt_connection_t* connection, uint8_t* buffer, uint16_t buffer_length)
 {
-  memset(connection, 0, sizeof(mqtt_connection_t));
+  os_memset(connection, 0, sizeof(mqtt_connection_t));
   connection->buffer = buffer;
   connection->buffer_length = buffer_length;
 }
@@ -301,11 +301,11 @@ mqtt_message_t* ICACHE_FLASH_ATTR mqtt_msg_connect(mqtt_connection_t* connection
   variable_header->lengthMsb = 0;
 #if defined(PROTOCOL_NAMEv31)
   variable_header->lengthLsb = 6;
-  memcpy(variable_header->magic, "MQIsdp", 6);
+  os_memcpy(variable_header->magic, "MQIsdp", 6);
   variable_header->version = 3;
 #elif defined(PROTOCOL_NAMEv311)
   variable_header->lengthLsb = 4;
-  memcpy(variable_header->magic, "MQTT", 4);
+  os_memcpy(variable_header->magic, "MQTT", 4);
   variable_header->version = 4;
 #else
 #error "Please define protocol name"
@@ -320,7 +320,7 @@ mqtt_message_t* ICACHE_FLASH_ATTR mqtt_msg_connect(mqtt_connection_t* connection
 
   if(info->client_id != NULL && info->client_id[0] != '\0')
   {
-    if(append_string(connection, info->client_id, strlen(info->client_id)) < 0)
+    if(append_string(connection, info->client_id, os_strlen(info->client_id)) < 0)
       return fail_message(connection);
   }
   else
@@ -328,10 +328,10 @@ mqtt_message_t* ICACHE_FLASH_ATTR mqtt_msg_connect(mqtt_connection_t* connection
 
   if(info->will_topic != NULL && info->will_topic[0] != '\0')
   {
-    if(append_string(connection, info->will_topic, strlen(info->will_topic)) < 0)
+    if(append_string(connection, info->will_topic, os_strlen(info->will_topic)) < 0)
       return fail_message(connection);
 
-    if(append_string(connection, info->will_message, strlen(info->will_message)) < 0)
+    if(append_string(connection, info->will_message, os_strlen(info->will_message)) < 0)
       return fail_message(connection);
 
     variable_header->flags |= MQTT_CONNECT_FLAG_WILL;
@@ -342,7 +342,7 @@ mqtt_message_t* ICACHE_FLASH_ATTR mqtt_msg_connect(mqtt_connection_t* connection
 
   if(info->username != NULL && info->username[0] != '\0')
   {
-    if(append_string(connection, info->username, strlen(info->username)) < 0)
+    if(append_string(connection, info->username, os_strlen(info->username)) < 0)
       return fail_message(connection);
 
     variable_header->flags |= MQTT_CONNECT_FLAG_USERNAME;
@@ -350,7 +350,7 @@ mqtt_message_t* ICACHE_FLASH_ATTR mqtt_msg_connect(mqtt_connection_t* connection
 
   if(info->password != NULL && info->password[0] != '\0')
   {
-    if(append_string(connection, info->password, strlen(info->password)) < 0)
+    if(append_string(connection, info->password, os_strlen(info->password)) < 0)
       return fail_message(connection);
 
     variable_header->flags |= MQTT_CONNECT_FLAG_PASSWORD;
@@ -366,7 +366,7 @@ mqtt_message_t* ICACHE_FLASH_ATTR mqtt_msg_publish(mqtt_connection_t* connection
   if(topic == NULL || topic[0] == '\0')
     return fail_message(connection);
 
-  if(append_string(connection, topic, strlen(topic)) < 0)
+  if(append_string(connection, topic, os_strlen(topic)) < 0)
     return fail_message(connection);
 
   if(qos > 0)
@@ -379,7 +379,7 @@ mqtt_message_t* ICACHE_FLASH_ATTR mqtt_msg_publish(mqtt_connection_t* connection
 
   if(connection->message.length + data_length > connection->buffer_length)
     return fail_message(connection);
-  memcpy(connection->buffer + connection->message.length, data, data_length);
+  os_memcpy(connection->buffer + connection->message.length, data, data_length);
   connection->message.length += data_length;
 
   return fini_message(connection, MQTT_MSG_TYPE_PUBLISH, 0, qos, retain);
@@ -447,7 +447,7 @@ mqtt_message_t* ICACHE_FLASH_ATTR mqtt_msg_unsubscribe(mqtt_connection_t* connec
   if((*message_id = append_message_id(connection, 0)) == 0)
     return fail_message(connection);
 
-  if(append_string(connection, topic, strlen(topic)) < 0)
+  if(append_string(connection, topic, os_strlen(topic)) < 0)
     return fail_message(connection);
 
   return fini_message(connection, MQTT_MSG_TYPE_UNSUBSCRIBE, 0, 1, 0);

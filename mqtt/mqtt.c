@@ -236,15 +236,33 @@ mqtt_tcpclient_recv(void *arg, char *pdata, unsigned short len)
 	uint8_t msg_type;
 	uint8_t msg_qos;
 	uint16_t msg_id;
-
+        static char mqtttmpbuf[100]={0};
+	static  uint8 mqttflag=0;
+	static uint8 mqttlen=0;
 	struct espconn *pCon = (struct espconn*)arg;
 	MQTT_Client *client = (MQTT_Client *)pCon->reverse;
 
 READPACKET:
 	INFO("TCP: data received %d bytes\r\n", len);
 	if (len < MQTT_BUF_SIZE && len > 0) {
-		os_memcpy(client->mqtt_state.in_buffer, pdata, len);
-
+		//os_memcpy(client->mqtt_state.in_buffer, pdata, len);
+		//Avoid the combination of several types of packets in a block, MQTT resolve the problem, cause the module to reset, the situation in our test script and 100 command, MQTT resolve problems, the Internet and wifi accept deal with data is not timely
+	          if(mqttflag)
+		   {
+			 if(len==mqttlen)
+			      return ;	 		          
+			   os_memcpy(client->mqtt_state.in_buffer, mqtttmpbuf,mqttlen);	
+			   os_memcpy(client->mqtt_state.in_buffer+mqttlen,pdata,len);
+			   len=len+mqttlen;
+			   os_memcpy(pdata,client->mqtt_state.in_buffer,len);
+			   mqttflag=0;	
+			   os_memset(mqtttmpbuf,0,sizeof(mqtttmpbuf));
+			   INFO("packetlen=%d\r\n",len); 	
+		  }
+		 else
+		 {
+		  os_memcpy(client->mqtt_state.in_buffer, pdata, len);     
+		 } 
 		msg_type = mqtt_get_type(client->mqtt_state.in_buffer);
 		msg_qos = mqtt_get_qos(client->mqtt_state.in_buffer);
 		msg_id = mqtt_get_id(client->mqtt_state.in_buffer, client->mqtt_state.in_buffer_length);
@@ -342,17 +360,28 @@ READPACKET:
 			if (msg_type == MQTT_MSG_TYPE_PUBLISH)
 			{
 				len = client->mqtt_state.message_length_read;
-
 				if (client->mqtt_state.message_length < client->mqtt_state.message_length_read)
 				{
-					//client->connState = MQTT_PUBLISH_RECV;
-					//Not Implement yet
-					len -= client->mqtt_state.message_length;
-					pdata += client->mqtt_state.message_length;
-
-					INFO("Get another published message\r\n");
-					goto READPACKET;
-				}
+					    //client->connState = MQTT_PUBLISH_RECV;
+					    //Not Implement yet                   
+					    len -= client->mqtt_state.message_length;
+					    pdata += client->mqtt_state.message_length;
+					    INFO ("len2=%d,len3=%d\r\n",len,client->mqtt_state.message_length);
+					    INFO("Get another published message\r\n");
+					     if(len<client->mqtt_state.message_length)
+					      {
+						    msg_type = mqtt_get_type(pdata);//防止mqtt几种不同类型包黏包，只对发布包进行组包
+						     client->mqtt_state.message_length = mqtt_get_total_length(pdata, len);	 
+						     if((msg_type==MQTT_MSG_TYPE_PUBLISH)&&(client->mqtt_state.message_length!=len))
+						     {
+								mqttlen=len;
+								os_memcpy(mqtttmpbuf, pdata, len);
+								mqttflag=1;
+								INFO("lost packet=%d\r\n",mqttlen); 
+						     }
+					      }
+					    goto READPACKET;
+			}
 
 			}
 			break;
